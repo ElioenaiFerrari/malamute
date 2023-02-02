@@ -1,4 +1,4 @@
-package whatsapp
+package web
 
 import (
 	"context"
@@ -7,42 +7,39 @@ import (
 	"time"
 
 	"github.com/ElioenaiFerrari/malamute/chat"
+	"github.com/ElioenaiFerrari/malamute/env"
 	"github.com/IBM/go-sdk-core/core"
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/fiber/v2"
-	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 	"github.com/watson-developer-cloud/go-sdk/v3/assistantv2"
 )
 
-type WhatsappController struct {
-	whatsappService  *WhatsappService
+var e env.Environment = env.New()
+
+type WebController struct {
 	assistantService *assistantv2.AssistantV2
 	chatService      *chat.ChatService
 }
 
-func NewWhatsappController(
-	whatsappService *WhatsappService,
+func NewWebController(
 	assistantService *assistantv2.AssistantV2,
 	chatService *chat.ChatService,
-) *WhatsappController {
-	return &WhatsappController{
-		whatsappService:  whatsappService,
+) *WebController {
+	return &WebController{
 		assistantService: assistantService,
 		chatService:      chatService,
 	}
 }
 
-func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
+func (webController *WebController) SendMessage(c *fiber.Ctx) error {
 	userMessageTimestamp := time.Now()
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	from := c.FormValue("From")
-	to := c.FormValue("To")
-	body := c.FormValue("Body")
+	body := c.FormValue("body")
 
-	userChat, _ := whatsappController.chatService.Find(ctx, "id", RawPhone(from))
+	userChat, _ := webController.chatService.Find(ctx, "id", "")
 
 	if userChat == nil {
 		userChat = &chat.Chat{
@@ -52,7 +49,7 @@ func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
 		}
 	}
 
-	assistantMessage, _, err := whatsappController.assistantService.MessageStatelessWithContext(ctx, &assistantv2.MessageStatelessOptions{
+	assistantMessage, _, err := webController.assistantService.MessageStatelessWithContext(ctx, &assistantv2.MessageStatelessOptions{
 		AssistantID: &e.Assistant.ID,
 		Input: &assistantv2.MessageInputStateless{
 			MessageType: core.StringPtr("text"),
@@ -75,43 +72,37 @@ func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
 		return fiber.NewError(http.StatusInternalServerError, err.Error())
 	}
 
-	ch := make(chan *openapi.ApiV2010Message)
-	go whatsappController.whatsappService.SendMessage(ctx, ch, to, from, *parsedMessage.Text)
-	defer func() {
-		<-ch
-	}()
+	// ch := make(chan *openapi.ApiV2010Message)
 
 	messages := []chat.Message{
 		{
+			Text:      body,
+			From:      chat.IssuerUser,
 			Context:   nil,
 			CreatedAt: userMessageTimestamp,
-			From:      chat.IssuerUser,
-			Platform:  chat.PlatformWhatsapp,
 			Status:    chat.MessageStatusRead,
-			Text:      body,
 		},
 		{
+			Text:      *parsedMessage.Text,
+			From:      chat.IssuerAssistant,
 			Context:   assistantMessage.Context,
 			CreatedAt: assistantMessageTimestamp,
-			From:      chat.IssuerAssistant,
-			Platform:  chat.PlatformWhatsapp,
 			Status:    chat.MessageStatusSent,
-			Text:      *parsedMessage.Text,
 		},
 	}
 
-	if _, err := whatsappController.chatService.PushMessages(ctx, RawPhone(from), messages); err != nil {
+	if _, err := webController.chatService.PushMessages(ctx, "", messages); err != nil {
 		return fiber.NewError(http.StatusInternalServerError, err.Error())
 	}
 
 	return c.SendStatus(http.StatusNoContent)
 }
 
-func (whatsappController *WhatsappController) Callback(c *fiber.Ctx) error {
+func (webController *WebController) Callback(c *fiber.Ctx) error {
 	sid := c.FormValue("MessageSid")
 	status := c.FormValue("MessageStatus")
 	to := c.FormValue("To")
 
-	log.Printf("whatsapp::callback message %s %s to %s", sid, status, to)
+	log.Printf("web::callback message %s %s to %s", sid, status, to)
 	return c.SendStatus(http.StatusNoContent)
 }

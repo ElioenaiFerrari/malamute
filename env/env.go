@@ -23,6 +23,9 @@ type Environment struct {
 		ID      string `env:"ASSISTANT_ID,required=true"`
 		Version string `env:"ASSISTANT_VERSION,required=true"`
 	}
+	DB struct {
+		URL string `env:"DB_URL,required=true"`
+	}
 }
 
 func New() Environment {

@@ -17,11 +17,11 @@ func NewEmailController(emailService *EmailService) *EmailController {
 	}
 }
 
-func (emailController *EmailController) SendEmail(ctx *fiber.Ctx) error {
+func (emailController *EmailController) SendEmail(c *fiber.Ctx) error {
 	var params map[string]string
 	wg := &sync.WaitGroup{}
 
-	if err := ctx.BodyParser(&params); err != nil {
+	if err := c.BodyParser(&params); err != nil {
 		return fiber.NewError(http.StatusBadRequest, err.Error())
 	}
 
@@ -49,5 +49,5 @@ func (emailController *EmailController) SendEmail(ctx *fiber.Ctx) error {
 	go emailController.emailService.SendEmail(wg, "default", params)
 	wg.Wait()
 
-	return ctx.SendStatus(http.StatusNoContent)
+	return c.SendStatus(http.StatusNoContent)
 }

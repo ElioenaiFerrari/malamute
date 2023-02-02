@@ -5,7 +5,7 @@ import (
 
 	"github.com/ElioenaiFerrari/malamute/env"
 	"github.com/IBM/go-sdk-core/core"
-	"github.com/watson-developer-cloud/go-sdk/v2/assistantv2"
+	"github.com/watson-developer-cloud/go-sdk/v3/assistantv2"
 )
 
 var e env.Environment = env.New()
@@ -15,7 +15,8 @@ func NewAssistantService() *assistantv2.AssistantV2 {
 		URL:     e.Assistant.URL,
 		Version: &e.Assistant.Version,
 		Authenticator: &core.IamAuthenticator{
-			ApiKey: e.Assistant.APIKey,
+			ApiKey:                 e.Assistant.APIKey,
+			DisableSSLVerification: true,
 		},
 	})
 

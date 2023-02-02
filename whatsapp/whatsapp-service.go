@@ -1,8 +1,7 @@
 package whatsapp
 
 import (
-	"log"
-	"sync"
+	"context"
 
 	"github.com/ElioenaiFerrari/malamute/env"
 	"github.com/twilio/twilio-go"
@@ -21,9 +20,7 @@ func NewWhatsappService(client *twilio.RestClient) *WhatsappService {
 	}
 }
 
-func (whatsappService *WhatsappService) SendMessage(wg *sync.WaitGroup, from, to, body string) error {
-	defer wg.Done()
-
+func (whatsappService *WhatsappService) SendMessage(ctx context.Context, ch chan *openapi.ApiV2010Message, from, to, body string) {
 	message, err := whatsappService.client.Api.CreateMessage(&openapi.CreateMessageParams{
 		From:           &from,
 		To:             &to,
@@ -32,10 +29,9 @@ func (whatsappService *WhatsappService) SendMessage(wg *sync.WaitGroup, from, to
 	})
 
 	if err != nil {
-		return err
+		ch <- nil
+		return
 	}
 
-	log.Printf("whatsapp::message message: %s %s", *message.Sid, *message.Status)
-
-	return nil
+	ch <- message
 }

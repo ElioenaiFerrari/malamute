@@ -22,7 +22,7 @@ func NewEmailService(client *gomail.Dialer) *EmailService {
 func (emailService *EmailService) SendEmail(wg *sync.WaitGroup, view string, ctx map[string]string) error {
 	defer wg.Done()
 
-	view = fmt.Sprintf("templates/%s.html", view)
+	view = fmt.Sprintf("template/%s.html", view)
 	t, _ := template.ParseFiles(view)
 
 	var tpl bytes.Buffer
