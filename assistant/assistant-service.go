@@ -27,4 +27,9 @@ func NewAssistantService() *assistantv2.AssistantV2 {
 	return assistant
 }
 
-// func TakeAction(context *assistantv2.MessageContextStateless) error {}
+func TakeAction(context *assistantv2.MessageContextStateless) error {
+	userVars := context.Skills["actions skill"].UserDefined
+	switch userVars["action"] {
+	}
+	return nil
+}

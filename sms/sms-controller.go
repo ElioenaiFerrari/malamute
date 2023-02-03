@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type SMSController struct {
@@ -17,25 +17,25 @@ func NewSMSController(smsService *SMSService) *SMSController {
 	}
 }
 
-func (smsController *SMSController) SendMessage(ctx *fiber.Ctx) error {
+func (smsController *SMSController) SendMessage(c echo.Context) error {
 	var params map[string]string
 	wg := &sync.WaitGroup{}
 
-	if err := ctx.BodyParser(&params); err != nil {
-		return fiber.NewError(http.StatusBadRequest, err.Error())
+	if err := c.Bind(&params); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	if params["to"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `to` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `to` param")
 	}
 
 	if params["body"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `body` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `body` param")
 	}
 
 	wg.Add(1)
 	go smsController.smsService.SendMessage(wg, params["to"], params["body"])
 	wg.Wait()
 
-	return ctx.SendStatus(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }

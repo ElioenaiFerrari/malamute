@@ -9,7 +9,7 @@ import (
 	"github.com/ElioenaiFerrari/malamute/chat"
 	"github.com/IBM/go-sdk-core/core"
 	"github.com/bytedance/sonic"
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 	"github.com/watson-developer-cloud/go-sdk/v3/assistantv2"
 )
@@ -32,7 +32,7 @@ func NewWhatsappController(
 	}
 }
 
-func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
+func (whatsappController *WhatsappController) SendMessage(c echo.Context) error {
 	userMessageTimestamp := time.Now()
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -62,7 +62,7 @@ func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return fiber.NewError(http.StatusInternalServerError, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	assistantMessageTimestamp := time.Now()
@@ -72,7 +72,7 @@ func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
 
 	assistantMessageB, _ := sonic.Marshal(generic)
 	if err := sonic.Unmarshal(assistantMessageB, &parsedMessage); err != nil {
-		return fiber.NewError(http.StatusInternalServerError, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	ch := make(chan *openapi.ApiV2010Message)
@@ -101,17 +101,17 @@ func (whatsappController *WhatsappController) SendMessage(c *fiber.Ctx) error {
 	}
 
 	if _, err := whatsappController.chatService.PushMessages(ctx, RawPhone(from), messages); err != nil {
-		return fiber.NewError(http.StatusInternalServerError, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.SendStatus(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
 
-func (whatsappController *WhatsappController) Callback(c *fiber.Ctx) error {
+func (whatsappController *WhatsappController) Callback(c echo.Context) error {
 	sid := c.FormValue("MessageSid")
 	status := c.FormValue("MessageStatus")
 	to := c.FormValue("To")
 
 	log.Printf("whatsapp::callback message %s %s to %s", sid, status, to)
-	return c.SendStatus(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }

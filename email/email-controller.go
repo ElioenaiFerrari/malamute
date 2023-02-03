@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type EmailController struct {
@@ -17,37 +18,37 @@ func NewEmailController(emailService *EmailService) *EmailController {
 	}
 }
 
-func (emailController *EmailController) SendEmail(c *fiber.Ctx) error {
+func (emailController *EmailController) SendMessage(c echo.Context) error {
 	var params map[string]string
 	wg := &sync.WaitGroup{}
 
-	if err := c.BodyParser(&params); err != nil {
+	if err := c.Bind(&params); err != nil {
 		return fiber.NewError(http.StatusBadRequest, err.Error())
 	}
 
 	if params["subject"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `subject` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `subject` param")
 	}
 
 	if params["title"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `title` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `title` param")
 	}
 
 	if params["description"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `description` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `description` param")
 	}
 
 	if params["to_name"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `to_name` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `to_name` param")
 	}
 
 	if params["to_email"] == "" {
-		return fiber.NewError(http.StatusBadRequest, "missing `to_email` param")
+		return echo.NewHTTPError(http.StatusBadRequest, "missing `to_email` param")
 	}
 
 	wg.Add(1)
 	go emailController.emailService.SendEmail(wg, "default", params)
 	wg.Wait()
 
-	return c.SendStatus(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }

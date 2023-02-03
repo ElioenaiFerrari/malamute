@@ -12,13 +12,11 @@ import (
 	"github.com/ElioenaiFerrari/malamute/email"
 	"github.com/ElioenaiFerrari/malamute/env"
 	"github.com/ElioenaiFerrari/malamute/sms"
+	"github.com/ElioenaiFerrari/malamute/web"
 	"github.com/ElioenaiFerrari/malamute/whatsapp"
-	"github.com/bytedance/sonic"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cache"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/olahol/melody"
 	"github.com/twilio/twilio-go"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -44,26 +42,35 @@ func main() {
 	whatsappService := whatsapp.NewWhatsappService(t)
 	assistantService := assistant.NewAssistantService()
 	whatsappController := whatsapp.NewWhatsappController(whatsappService, assistantService, chatService)
+	webController := web.NewWebController(assistantService, chatService)
 	smsService := sms.NewSMSService(t)
 	smsController := sms.NewSMSController(smsService)
 	emailService := email.NewEmailService(smtpClient)
 	emailController := email.NewEmailController(emailService)
 
-	app := fiber.New(fiber.Config{
-		JSONEncoder: sonic.Marshal,
-		JSONDecoder: sonic.Unmarshal,
-	})
+	app := echo.New()
 	v1 := app.Group("/api/v1")
+	whatsappV1 := v1.Group("/whatsapp")
+	smsV1 := v1.Group("/sms")
+	emailV1 := v1.Group("/email")
 
-	app.Use(recover.New())
-	app.Use(cors.New(cors.Config{AllowMethods: "POST,GET,OPTIONS"}))
-	app.Use(logger.New())
-	app.Use(cache.New())
+	app.Use(middleware.Logger())
+	app.Use(middleware.CORS())
+	app.Use(middleware.Gzip())
 
-	v1.Post("/whatsapp/messages", whatsappController.SendMessage)
-	v1.Post("/whatsapp/callback", whatsappController.Callback)
-	v1.Post("/sms/messages", smsController.SendMessage)
-	v1.Post("/email/messages", emailController.SendEmail)
+	websocket := melody.New()
+
+	websocket.HandleMessage(webController.SendMessage)
+
+	v1.GET("/ws", func(c echo.Context) error {
+		websocket.HandleRequest(c.Response().Writer, c.Request())
+		return nil
+	})
+
+	whatsappV1.POST("/messages", whatsappController.SendMessage)
+	whatsappV1.POST("/callback", whatsappController.Callback)
+	smsV1.POST("/messages", smsController.SendMessage)
+	emailV1.POST("/messages", emailController.SendMessage)
 
 	go func() {
 		ch := make(chan os.Signal, 1)
@@ -75,6 +82,6 @@ func main() {
 		os.Exit(1)
 	}()
 
-	log.Fatal(app.Listen(":4000"))
+	app.Logger.Fatal(app.Start(":4000"))
 
 }
