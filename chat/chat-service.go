@@ -53,15 +53,11 @@ func (s *ChatService) PushMessages(ctx context.Context, id string, messages []Me
 		return c, nil
 	}
 
-	var result *mongo.SingleResult
-
-	for _, message := range messages {
-		result = collection.FindOneAndUpdate(
-			ctx,
-			bson.D{primitive.E{Key: "id", Value: id}},
-			bson.M{"$push": bson.M{"messages": message}, "$set": bson.M{"last_message": &lastMessage}},
-		)
-	}
+	result := collection.FindOneAndUpdate(
+		ctx,
+		bson.D{primitive.E{Key: "id", Value: id}},
+		bson.M{"$push": bson.M{"messages": bson.M{"$each": messages}}, "$set": bson.M{"last_message": &lastMessage}},
+	)
 
 	if err := result.Decode(&c); err != nil {
 		return nil, err
