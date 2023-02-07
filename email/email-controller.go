@@ -18,7 +18,7 @@ func NewEmailController(emailService *EmailService) *EmailController {
 	}
 }
 
-func (emailController *EmailController) SendMessage(c echo.Context) error {
+func (ec *EmailController) SendMessage(c echo.Context) error {
 	var params map[string]string
 	wg := &sync.WaitGroup{}
 
@@ -47,7 +47,7 @@ func (emailController *EmailController) SendMessage(c echo.Context) error {
 	}
 
 	wg.Add(1)
-	go emailController.emailService.SendEmail(wg, "default", params)
+	go ec.emailService.SendEmail(wg, "default", params)
 	wg.Wait()
 
 	return c.NoContent(http.StatusNoContent)

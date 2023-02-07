@@ -7,33 +7,26 @@ import (
 	"time"
 
 	"github.com/ElioenaiFerrari/malamute/chat"
-	"github.com/IBM/go-sdk-core/core"
-	"github.com/bytedance/sonic"
 	"github.com/labstack/echo/v4"
 	openapi "github.com/twilio/twilio-go/rest/api/v2010"
-	"github.com/watson-developer-cloud/go-sdk/v3/assistantv2"
 )
 
 type WhatsappController struct {
-	whatsappService  *WhatsappService
-	assistantService *assistantv2.AssistantV2
-	chatService      *chat.ChatService
+	whatsappService *WhatsappService
+	chatService     *chat.ChatService
 }
 
 func NewWhatsappController(
 	whatsappService *WhatsappService,
-	assistantService *assistantv2.AssistantV2,
 	chatService *chat.ChatService,
 ) *WhatsappController {
 	return &WhatsappController{
-		whatsappService:  whatsappService,
-		assistantService: assistantService,
-		chatService:      chatService,
+		whatsappService: whatsappService,
+		chatService:     chatService,
 	}
 }
 
-func (whatsappController *WhatsappController) SendMessage(c echo.Context) error {
-	userMessageTimestamp := time.Now()
+func (wc *WhatsappController) SendMessage(c echo.Context) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -42,72 +35,21 @@ func (whatsappController *WhatsappController) SendMessage(c echo.Context) error 
 	to := c.FormValue("To")
 	body := c.FormValue("Body")
 
-	userChat, _ := whatsappController.chatService.Find(ctx, "id", RawPhone(from))
-
-	if userChat == nil {
-		userChat = &chat.Chat{
-			LastMessage: &chat.Message{
-				Context: &assistantv2.MessageContextStateless{},
-			},
-		}
-	}
-
-	assistantMessage, _, err := whatsappController.assistantService.MessageStatelessWithContext(ctx, &assistantv2.MessageStatelessOptions{
-		AssistantID: &e.Assistant.ID,
-		Input: &assistantv2.MessageInputStateless{
-			MessageType: core.StringPtr("text"),
-			Text:        &body,
-		},
-		Context: userChat.LastMessage.Context,
-	})
-
+	assistantMessage, err := wc.chatService.SendMessage(ctx, chat.PlatformWhatsapp, RawPhone(from), body)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	assistantMessageTimestamp := time.Now()
-
-	generic := assistantMessage.Output.Generic[0]
-	var parsedMessage assistantv2.RuntimeResponseGeneric
-
-	assistantMessageB, _ := sonic.Marshal(generic)
-	if err := sonic.Unmarshal(assistantMessageB, &parsedMessage); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
 	ch := make(chan *openapi.ApiV2010Message)
-	go whatsappController.whatsappService.SendMessage(ctx, ch, to, from, *parsedMessage.Text)
+	go wc.whatsappService.SendMessage(ctx, ch, to, from, assistantMessage.Text)
 	defer func() {
 		<-ch
 	}()
 
-	messages := []chat.Message{
-		{
-			Context:   nil,
-			CreatedAt: userMessageTimestamp,
-			From:      chat.IssuerUser,
-			Platform:  chat.PlatformWhatsapp,
-			Status:    chat.MessageStatusRead,
-			Text:      body,
-		},
-		{
-			Context:   assistantMessage.Context,
-			CreatedAt: assistantMessageTimestamp,
-			From:      chat.IssuerAssistant,
-			Platform:  chat.PlatformWhatsapp,
-			Status:    chat.MessageStatusSent,
-			Text:      *parsedMessage.Text,
-		},
-	}
-
-	if _, err := whatsappController.chatService.PushMessages(ctx, RawPhone(from), messages); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-	}
-
 	return c.NoContent(http.StatusNoContent)
 }
 
-func (whatsappController *WhatsappController) Callback(c echo.Context) error {
+func (wc *WhatsappController) Callback(c echo.Context) error {
 	sid := c.FormValue("MessageSid")
 	status := c.FormValue("MessageStatus")
 	to := c.FormValue("To")

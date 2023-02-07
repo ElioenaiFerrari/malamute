@@ -20,8 +20,8 @@ func NewWhatsappService(client *twilio.RestClient) *WhatsappService {
 	}
 }
 
-func (whatsappService *WhatsappService) SendMessage(ctx context.Context, ch chan *openapi.ApiV2010Message, from, to, body string) {
-	message, err := whatsappService.client.Api.CreateMessage(&openapi.CreateMessageParams{
+func (ws *WhatsappService) SendMessage(ctx context.Context, ch chan *openapi.ApiV2010Message, from, to, body string) {
+	message, err := ws.client.Api.CreateMessage(&openapi.CreateMessageParams{
 		From:           &from,
 		To:             &to,
 		Body:           &body,

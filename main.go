@@ -38,10 +38,10 @@ func main() {
 		Password:   e.Twilio.AuthToken,
 	})
 	smtpClient := gomail.NewDialer("smtp.gmail.com", 587, e.SMTP.User, e.SMTP.Pass)
-	chatService := chat.NewChatService(db)
 	whatsappService := whatsapp.NewWhatsappService(t)
 	assistantService := assistant.NewAssistantService()
-	whatsappController := whatsapp.NewWhatsappController(whatsappService, assistantService, chatService)
+	chatService := chat.NewChatService(db, assistantService)
+	whatsappController := whatsapp.NewWhatsappController(whatsappService, chatService)
 	webController := web.NewWebController(assistantService, chatService)
 	smsService := sms.NewSMSService(t)
 	smsController := sms.NewSMSController(smsService)
@@ -60,6 +60,7 @@ func main() {
 
 	websocket := melody.New()
 
+	websocket.HandleConnect(webController.InitialMessage)
 	websocket.HandleMessage(webController.SendMessage)
 
 	v1.GET("/ws", func(c echo.Context) error {

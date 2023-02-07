@@ -19,7 +19,7 @@ func NewEmailService(client *gomail.Dialer) *EmailService {
 	}
 }
 
-func (emailService *EmailService) SendEmail(wg *sync.WaitGroup, view string, ctx map[string]string) error {
+func (es *EmailService) SendEmail(wg *sync.WaitGroup, view string, ctx map[string]string) error {
 	defer wg.Done()
 
 	view = fmt.Sprintf("template/%s.html", view)
@@ -37,5 +37,5 @@ func (emailService *EmailService) SendEmail(wg *sync.WaitGroup, view string, ctx
 	msg.SetHeader("To", fmt.Sprintf("%s <%s>", ctx["to_name"], ctx["to_email"]))
 	msg.SetBody("text/html", result)
 
-	return emailService.client.DialAndSend(msg)
+	return es.client.DialAndSend(msg)
 }
