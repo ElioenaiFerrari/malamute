@@ -29,22 +29,20 @@ func NewWebController(
 }
 
 func (wc *WebController) InitialMessage(s *melody.Session) {
-	// ctx := context.Background()
-	// ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	// defer cancel()
+	go func(s *melody.Session) {
+		initialMessage := wc.chatService.GetInitialMessage()
+		b, err := sonic.Marshal(initialMessage)
+		if err != nil {
+			s.Write([]byte(err.Error()))
+			return
+		}
 
-	initialMessage := wc.chatService.GetInitialMessage()
-	b, err := sonic.Marshal(initialMessage)
-	if err != nil {
-		s.Write([]byte(err.Error()))
-		return
-	}
-
-	s.Write(b)
+		s.Write(b)
+	}(s)
 }
 
 func (wc *WebController) SendMessage(s *melody.Session, b []byte) {
-	go func() {
+	go func(s *melody.Session, b []byte) {
 		ctx := context.Background()
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
@@ -61,7 +59,6 @@ func (wc *WebController) SendMessage(s *melody.Session, b []byte) {
 		}
 
 		from := "+5527999152059"
-
 		assistantMessage, err := wc.chatService.SendMessage(ctx, chat.PlatformWeb, from, params["text"])
 		if err != nil {
 			s.Write([]byte(err.Error()))
@@ -75,5 +72,5 @@ func (wc *WebController) SendMessage(s *melody.Session, b []byte) {
 		}
 
 		s.Write(b)
-	}()
+	}(s, b)
 }

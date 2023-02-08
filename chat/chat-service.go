@@ -74,20 +74,26 @@ func (s *ChatService) SendMessage(ctx context.Context, platform, id, text string
 		},
 		Context: userChat.LastMessage.Context,
 	})
-
 	if err != nil {
-		return nil, err
-	}
-
-	if err := assistant.TakeAction(assistantMessage.Context); err != nil {
 		return nil, err
 	}
 
 	generic := assistantMessage.Output.Generic[0]
 	var parsedMessage assistantv2.RuntimeResponseGeneric
+	assistantMessageB, err := sonic.Marshal(generic)
+	if err != nil {
+		return nil, err
+	}
 
-	assistantMessageB, _ := sonic.Marshal(generic)
 	if err := sonic.Unmarshal(assistantMessageB, &parsedMessage); err != nil {
+		return nil, err
+	}
+
+	if *parsedMessage.Text == "" {
+		parsedMessage.Text = core.StringPtr(e.Assistant.FallbackMessage)
+	}
+
+	if err := assistant.TakeAction(assistantMessage.Context); err != nil {
 		return nil, err
 	}
 
@@ -113,14 +119,12 @@ func (s *ChatService) SendMessage(ctx context.Context, platform, id, text string
 	var c *Chat
 	lastMessage := messages[len(messages)-1]
 	collection := s.db.Collection("chats")
-
 	if len(userChat.Messages) == 0 {
 		c = &Chat{
 			ID:          id,
 			Messages:    messages,
 			LastMessage: &lastMessage,
 		}
-
 		if _, err := collection.InsertOne(ctx, &c); err != nil {
 			return nil, err
 		}
