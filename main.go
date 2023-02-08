@@ -57,6 +57,7 @@ func main() {
 	app.Use(middleware.Logger())
 	app.Use(middleware.CORS())
 	app.Use(middleware.Gzip())
+	app.Static("/", "assets")
 
 	websocket := melody.New()
 

@@ -1,0 +1,9 @@
+:root {
+  --primary-color: #7159c1;
+  --secondary-color: lightblue;
+
+  --user-baloon-color: var(--primary-color);
+  --user-baloon-text-color: #fff;
+  --assistant-baloon-color: #fff;
+  --assistant-baloon-text-color: grey;
+}
