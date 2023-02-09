@@ -1,7 +1,10 @@
 package assistant
 
 import (
+	"bytes"
+	"fmt"
 	"log"
+	"text/template"
 
 	"github.com/ElioenaiFerrari/malamute/env"
 	"github.com/IBM/go-sdk-core/core"
@@ -27,9 +30,27 @@ func NewAssistantService() *assistantv2.AssistantV2 {
 	return assistant
 }
 
-func TakeAction(context *assistantv2.MessageContextStateless) error {
-	userVars := context.Skills["actions skill"].UserDefined
-	switch userVars["action"] {
+func parseMessageTemplate(vars map[string]interface{}) (string, error) {
+	action := vars["action"]
+	view := fmt.Sprintf("template/assistant/%s.html", action)
+	t, err := template.ParseFiles(view)
+	if err != nil {
+		return "", err
 	}
-	return nil
+
+	var tpl bytes.Buffer
+	if err := t.Execute(&tpl, vars); err != nil {
+		return "", err
+	}
+
+	return tpl.String(), nil
+}
+
+func UpdateMessageByAction(vars map[string]interface{}) (string, error) {
+	switch vars["action"] {
+	case "show_menu":
+		return parseMessageTemplate(vars)
+	default:
+		return "", nil
+	}
 }

@@ -57,14 +57,13 @@ func main() {
 	app.Use(middleware.Logger())
 	app.Use(middleware.CORS())
 	app.Use(middleware.Gzip())
-	app.Static("/", "assets")
 
 	websocket := melody.New()
 
 	websocket.HandleConnect(webController.InitialMessage)
 	websocket.HandleMessage(webController.SendMessage)
 
-	v1.GET("/ws", func(c echo.Context) error {
+	app.GET("/ws", func(c echo.Context) error {
 		websocket.HandleRequest(c.Response().Writer, c.Request())
 		return nil
 	})

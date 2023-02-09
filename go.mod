@@ -7,6 +7,7 @@ require (
 	github.com/Netflix/go-env v0.0.0-20220526054621-78278af1949d
 	github.com/bytedance/sonic v1.5.0
 	github.com/gofiber/fiber/v2 v2.38.1
+	github.com/google/uuid v1.1.1
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/olahol/melody v1.1.1
 	github.com/twilio/twilio-go v1.0.0

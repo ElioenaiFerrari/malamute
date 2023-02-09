@@ -54,6 +54,98 @@ func (s *ChatService) GetInitialMessage() *Message {
 	}
 }
 
+func (*ChatService) takeAction(ch chan string, assistantMessage *assistantv2.MessageResponseStateless) {
+	var parsedMessage assistantv2.RuntimeResponseGeneric
+	generic := assistantMessage.Output.Generic
+	if len(generic) == 0 {
+		parsedMessage.Text = &e.Assistant.FallbackMessage
+	} else {
+		assistantMessageB, err := sonic.Marshal(generic[0])
+		if err != nil {
+			ch <- ""
+			return
+		}
+
+		if err := sonic.Unmarshal(assistantMessageB, &parsedMessage); err != nil {
+			ch <- ""
+			return
+		}
+
+		ch <- *parsedMessage.Text
+	}
+
+	templateMessage, err := assistant.UpdateMessageByAction(parsedMessage.UserDefined)
+	if err != nil {
+		ch <- *parsedMessage.Text
+		return
+	}
+
+	ch <- templateMessage
+}
+
+func (s *ChatService) update(
+	ch chan *Message,
+	actionCh chan string,
+	assistantMessage *assistantv2.MessageResponseStateless,
+	userChat *Chat,
+	userMessageTimestamp time.Time,
+	ctx context.Context,
+	id,
+	text,
+	platform string,
+) {
+	var c *Chat
+	assistantText := <-actionCh
+	messages := []Message{
+		{
+			Text:      text,
+			From:      IssuerUser,
+			Context:   nil,
+			CreatedAt: userMessageTimestamp,
+			Status:    MessageStatusRead,
+			Platform:  platform,
+		},
+		{
+			Text:      assistantText,
+			From:      IssuerAssistant,
+			Context:   assistantMessage.Context,
+			CreatedAt: time.Now(),
+			Status:    MessageStatusSent,
+			Platform:  platform,
+		},
+	}
+
+	lastMessage := messages[len(messages)-1]
+	if assistantText != "" {
+		lastMessage.Text = assistantText
+	}
+	collection := s.db.Collection("chats")
+	if len(userChat.Messages) == 0 {
+		c = &Chat{
+			ID:          id,
+			Messages:    messages,
+			LastMessage: &lastMessage,
+		}
+		if _, err := collection.InsertOne(ctx, &c); err != nil {
+			ch <- nil
+			return
+		}
+
+		result := collection.FindOneAndUpdate(
+			ctx,
+			bson.D{primitive.E{Key: "id", Value: id}},
+			bson.M{"$push": bson.M{"messages": bson.M{"$each": messages}}, "$set": bson.M{"last_message": &lastMessage}},
+		)
+
+		if err := result.Decode(&c); err != nil {
+			ch <- nil
+			return
+		}
+	}
+
+	ch <- &lastMessage
+}
+
 func (s *ChatService) SendMessage(ctx context.Context, platform, id, text string) (*Message, error) {
 	userMessageTimestamp := time.Now()
 	userChat, _ := s.Find(ctx, "id", id)
@@ -78,69 +170,11 @@ func (s *ChatService) SendMessage(ctx context.Context, platform, id, text string
 		return nil, err
 	}
 
-	generic := assistantMessage.Output.Generic[0]
-	var parsedMessage assistantv2.RuntimeResponseGeneric
-	assistantMessageB, err := sonic.Marshal(generic)
-	if err != nil {
-		return nil, err
-	}
+	actionCh := make(chan string)
+	go s.takeAction(actionCh, assistantMessage)
 
-	if err := sonic.Unmarshal(assistantMessageB, &parsedMessage); err != nil {
-		return nil, err
-	}
+	messageCh := make(chan *Message)
+	go s.update(messageCh, actionCh, assistantMessage, userChat, userMessageTimestamp, ctx, id, text, platform)
 
-	if *parsedMessage.Text == "" {
-		parsedMessage.Text = core.StringPtr(e.Assistant.FallbackMessage)
-	}
-
-	if err := assistant.TakeAction(assistantMessage.Context); err != nil {
-		return nil, err
-	}
-
-	messages := []Message{
-		{
-			Text:      text,
-			From:      IssuerUser,
-			Context:   nil,
-			CreatedAt: userMessageTimestamp,
-			Status:    MessageStatusRead,
-			Platform:  platform,
-		},
-		{
-			Text:      *parsedMessage.Text,
-			From:      IssuerAssistant,
-			Context:   assistantMessage.Context,
-			CreatedAt: time.Now(),
-			Status:    MessageStatusSent,
-			Platform:  platform,
-		},
-	}
-
-	var c *Chat
-	lastMessage := messages[len(messages)-1]
-	collection := s.db.Collection("chats")
-	if len(userChat.Messages) == 0 {
-		c = &Chat{
-			ID:          id,
-			Messages:    messages,
-			LastMessage: &lastMessage,
-		}
-		if _, err := collection.InsertOne(ctx, &c); err != nil {
-			return nil, err
-		}
-
-		return &lastMessage, nil
-	}
-
-	result := collection.FindOneAndUpdate(
-		ctx,
-		bson.D{primitive.E{Key: "id", Value: id}},
-		bson.M{"$push": bson.M{"messages": bson.M{"$each": messages}}, "$set": bson.M{"last_message": &lastMessage}},
-	)
-
-	if err := result.Decode(&c); err != nil {
-		return nil, err
-	}
-
-	return &lastMessage, nil
+	return <-messageCh, nil
 }

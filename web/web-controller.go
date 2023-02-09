@@ -58,7 +58,7 @@ func (wc *WebController) SendMessage(s *melody.Session, b []byte) {
 			return
 		}
 
-		from := "+5527999152059"
+		from := "" // Your number for tests
 		assistantMessage, err := wc.chatService.SendMessage(ctx, chat.PlatformWeb, from, params["text"])
 		if err != nil {
 			s.Write([]byte(err.Error()))
